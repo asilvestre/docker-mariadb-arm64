@@ -1,6 +1,4 @@
-FROM jsurf/rpi-raspbian
-
-RUN [ "cross-build-start" ]
+FROM arm64v8/debian:stretch
 
 ENV LANG C.UTF-8
 ENV TZ Europe/Berlin
@@ -11,13 +9,18 @@ RUN groupadd -r mysql && useradd -r -g mysql mysql
 # add gosu for easy step-down from root
 ENV GOSU_VERSION 1.10
 RUN set -x \
-	&& apt-get update && apt-get install -y --no-install-recommends ca-certificates wget && rm -rf /var/lib/apt/lists/* \
+	&& apt-get update && apt-get install -y --no-install-recommends gnupg dirmngr ca-certificates wget && rm -rf /var/lib/apt/lists/* \
 	&& wget -O /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$(dpkg --print-architecture)" \
 	&& wget -O /usr/local/bin/gosu.asc "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$(dpkg --print-architecture).asc" \
 	&& export GNUPGHOME="$(mktemp -d)" \
-	&& gpg --keyserver ha.pool.sks-keyservers.net --recv-keys B42F6819007F00F88E364FD4036A9C25BF357DD4 \
+	&& for server in ha.pool.sks-keyservers.net \
+		hkp://p80.pool.sks-keyservers.net:80 \
+		keyserver.ubuntu.com \
+		hkp://keyserver.ubuntu.com:80 \
+		pgp.mit.edu; do \
+	  if gpg --keyserver "$server" --recv-keys B42F6819007F00F88E364FD4036A9C25BF357DD4 ; then break; fi; done \
 	&& gpg --batch --verify /usr/local/bin/gosu.asc /usr/local/bin/gosu \
-	&& rm -r "$GNUPGHOME" /usr/local/bin/gosu.asc \
+	&& rm -rf "$GNUPGHOME" /usr/local/bin/gosu.asc \
 	&& chmod +x /usr/local/bin/gosu \
 	&& gosu nobody true \
 	&& apt-get purge -y --auto-remove ca-certificates wget
@@ -59,8 +62,6 @@ RUN sed -Ei 's/^(bind-address|log)/#&/' /etc/mysql/my.cnf \
 #    && chown -R mysql:mysql /var/lib/mysql /var/run/mysqld \
 #	&& chmod 777 /var/run/mysqld \
 #    && rm -rf /var/lib/apt/lists/*
-
-RUN [ "cross-build-end" ]
 
 VOLUME ["/var/lib/mysql"]
 
